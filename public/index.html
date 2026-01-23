@@ -329,3 +329,159 @@
                                                 <div class="service-provider">
                                                     <strong>服务商:</strong> {{ service.provider }}
                                                 </div>
+                                                <div class="service-id">
+                                                    <strong>ID:</strong> <code>{{ service.id }}</code>
+                                                </div>
+                                            </div>
+                                            
+                                            <template #footer>
+                                                <div class="service-actions">
+                                                    <el-button type="primary" size="small" @click="resolveService(service.id)">
+                                                        解析服务
+                                                    </el-button>
+                                                    <el-button size="small" @click="ElMessage.info('服务详情功能开发中')">
+                                                        详情
+                                                    </el-button>
+                                                </div>
+                                            </template>
+                                        </el-card>
+                                    </el-col>
+                                </el-row>
+                            </div>
+                            
+                            <div v-if="paginatedServices.length > 0" class="pagination-container">
+                                <el-pagination
+                                    v-model:current-page="currentPage"
+                                    v-model:page-size="pageSize"
+                                    :page-sizes="[10, 20, 50, 100]"
+                                    layout="total, sizes, prev, pager, next, jumper"
+                                    :total="totalServices"
+                                    @size-change="loadServices"
+                                    @current-change="loadServices"
+                                />
+                            </div>
+                        </div>
+                        
+                        <!-- 服务注册页 -->
+                        <div v-else-if="currentRoute === 'register'" class="register-page">
+                            <div class="page-header">
+                                <h1>注册AISI原子服务</h1>
+                                <p>将你的API服务接入AISI生态系统</p>
+                            </div>
+                            
+                            <el-card class="register-form-card">
+                                <el-form 
+                                    ref="registerFormRef"
+                                    :model="registerForm" 
+                                    :rules="registerRules" 
+                                    label-width="120px"
+                                    label-position="top"
+                                >
+                                    <el-form-item label="服务商名称" prop="provider">
+                                        <el-input 
+                                            v-model="registerForm.provider" 
+                                            placeholder="your-company"
+                                            clearable
+                                        />
+                                        <div class="form-hint">小写字母、数字、横线，将用于 aisi://{provider}/...</div>
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="服务名称" prop="service_name">
+                                        <el-input 
+                                            v-model="registerForm.service_name" 
+                                            placeholder="weather-service"
+                                            clearable
+                                        />
+                                        <div class="form-hint">小写字母、数字、横线，将生成 aisi://provider/{service-name}</div>
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="API端点" prop="endpoint">
+                                        <el-input 
+                                            v-model="registerForm.endpoint" 
+                                            placeholder="https://api.example.com/v1/service"
+                                            clearable
+                                        />
+                                        <div class="form-hint">完整的HTTP/HTTPS API地址</div>
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="服务描述">
+                                        <el-input 
+                                            v-model="registerForm.description_zh" 
+                                            type="textarea" 
+                                            :rows="3"
+                                            placeholder="简要描述服务的功能和用途"
+                                            maxlength="200"
+                                            show-word-limit
+                                        />
+                                    </el-form-item>
+                                    
+                                    <el-form-item label="服务分类">
+                                        <el-select v-model="registerForm.category" placeholder="选择分类">
+                                            <el-option label="天气" value="weather" />
+                                            <el-option label="地理位置" value="location" />
+                                            <el-option label="金融" value="finance" />
+                                            <el-option label="工具" value="utility" />
+                                            <el-option label="其他" value="other" />
+                                        </el-select>
+                                    </el-form-item>
+                                    
+                                    <el-form-item>
+                                        <el-button type="primary" @click="handleRegister" :loading="loading">
+                                            提交注册
+                                        </el-button>
+                                        <el-button @click="Object.keys(registerForm).forEach(k => registerForm[k] = ''); registerForm.category = 'other'">
+                                            重置
+                                        </el-button>
+                                    </el-form-item>
+                                </el-form>
+                            </el-card>
+                            
+                            <el-card class="register-info-card">
+                                <h3>注册说明</h3>
+                                <ul>
+                                    <li>注册的服务将出现在AISI服务目录中</li>
+                                    <li>服务ID格式：<code>aisi://provider/service-name</code></li>
+                                    <li>注册后可通过解析API获取服务端点</li>
+                                    <li>建议确保API稳定可用</li>
+                                    <li>如有问题，请联系 contact@aisi.run</li>
+                                </ul>
+                            </el-card>
+                        </div>
+                    </main>
+                    
+                    <!-- 页脚 -->
+                    <footer class="app-footer">
+                        <div class="footer-content">
+                            <p>AISI Protocol Service Registry • 服务原子化注册中心 v1.0</p>
+                            <p>
+                                <el-link href="https://aisi.run" target="_blank">aisi.run</el-link> • 
+                                <el-link href="https://github.com/aisi-protocol" target="_blank">GitHub</el-link> • 
+                                <el-link href="mailto:contact@aisi.run">联系我们</el-link>
+                            </p>
+                        </div>
+                    </footer>
+                </div>
+            `
+        });
+
+        // 注册组件
+        app.component(ElButton.name, ElButton);
+        app.component(ElForm.name, ElForm);
+        app.component(ElFormItem.name, ElFormItem);
+        app.component(ElInput.name, ElInput);
+        app.component(ElSelect.name, ElSelect);
+        app.component(ElOption.name, ElOption);
+        app.component(ElCard.name, ElCard);
+        app.component(ElTag.name, ElTag);
+        app.component(ElRow.name, ElRow);
+        app.component(ElCol.name, ElCol);
+        app.component(ElPagination.name, ElPagination);
+        app.component(ElLink.name, ElLink);
+        app.component(ElTabs.name, ElTabs);
+        app.component(ElTabPane.name, ElTabPane);
+
+        // 挂载应用
+        app.mount('#app');
+    </script>
+</body>
+</html>
