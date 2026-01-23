@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AISI Registry - 服务注册中心</title>
+    <meta name="description" content="AISI协议官方服务注册中心，为智能体提供标准化的原子服务目录">
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <!-- Polyfill for older browsers -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Vue应用将在这里渲染 -->
+    </div>
+
+    <!-- Vue 3 and Element Plus from CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus/dist/index.full.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    
+    <!-- Main Vue Application -->
+    <script>
+        const { createApp, ref, reactive, computed, onMounted } = Vue;
+        const { 
+            ElButton, ElForm, ElFormItem, ElInput, ElSelect, ElOption,
+            ElMessage, ElMessageBox, ElLoading, ElCard, ElTag,
+            ElRow, ElCol, ElPagination, ElTable, ElTableColumn,
+            ElTabs, ElTabPane, ElLink, ElEmpty
+        } = ElementPlus;
+
+        const app = createApp({
+            setup() {
+                // 响应式数据
+                const currentRoute = ref('home');
+                const services = ref([]);
+                const loading = ref(false);
+                const searchQuery = ref('');
+                const currentCategory = ref('all');
+                const currentPage = ref(1);
+                const pageSize = ref(10);
+                const totalServices = ref(0);
+                
+                // 注册表单数据
+                const registerForm = reactive({
+                    provider: '',
+                    service_name: '',
+                    endpoint: '',
+                    description_zh: '',
+                    category: 'other'
+                });
+                
+                const registerRules = {
+                    provider: [
+                        { required: true, message: '请输入服务商名称', trigger: 'blur' },
+                        { pattern: /^[a-z0-9-]+$/, message: '只能包含小写字母、数字和横线', trigger: 'blur' }
+                    ],
+                    service_name: [
+                        { required: true, message: '请输入服务名称', trigger: 'blur' },
+                        { pattern: /^[a-z0-9-]+$/, message: '只能包含小写字母、数字和横线', trigger: 'blur' }
+                    ],
+                    endpoint: [
+                        { required: true, message: '请输入API端点', trigger: 'blur' },
+                        { type: 'url', message: '请输入有效的URL', trigger: 'blur' }
+                    ]
+                };
+                
+                // 计算属性
+                const paginatedServices = computed(() => {
+                    let filtered = services.value;
+                    
+                    if (searchQuery.value) {
+                        const query = searchQuery.value.toLowerCase();
+                        filtered = filtered.filter(s => 
+                            s.id.toLowerCase().includes(query) ||
+                            s.description.toLowerCase().includes(query) ||
+                            s.provider.toLowerCase().includes(query)
+                        );
+                    }
+                    
+                    if (currentCategory.value !== 'all') {
+                        filtered = filtered.filter(s => s.category === currentCategory.value);
+                    }
+                    
+                    totalServices.value = filtered.length;
+                    const start = (currentPage.value - 1) * pageSize.value;
+                    const end = start + pageSize.value;
+                    return filtered.slice(start, end);
+                });
+                
+                const categories = computed(() => {
+                    const cats = new Set(services.value.map(s => s.category));
+                    return ['all', ...Array.from(cats)].filter(Boolean);
+                });
+                
+                // 方法
+                const navigateTo = (route) => {
+                    currentRoute.value = route;
+                    window.location.hash = `#/${route}`;
+                };
+                
+                const loadServices = async () => {
+                    loading.value = true;
+                    try {
+                        const response = await axios.get('/api/directory');
+                        if (response.data.success) {
+                            services.value = response.data.services;
+                        }
+                    } catch (error) {
+                        ElMessage.error('加载服务目录失败: ' + error.message);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+                
+                const handleRegister = async () => {
+                    try {
+                        const response = await axios.post('/api/register', registerForm);
+                        if (response.data.success) {
+                            ElMessage.success('服务注册成功！');
+                            // 重置表单
+                            Object.keys(registerForm).forEach(key => registerForm[key] = '');
+                            registerForm.category = 'other';
+                            // 重新加载服务
+                            await loadServices();
+                            navigateTo('directory');
+                        }
+                    } catch (error) {
+                        ElMessage.error(error.response?.data?.error || '注册失败');
+                    }
+                };
+                
+                const resolveService = async (serviceId) => {
+                    try {
+                        const response = await axios.get(`/api/resolve?serviceId=${encodeURIComponent(serviceId)}`);
+                        if (response.data.success) {
+                            ElMessageBox.alert(
+                                `<h3>${serviceId}</h3>
+                                <p><strong>端点:</strong> ${response.data.service.endpoint}</p>
+                                <p><strong>方法:</strong> ${response.data.service.method}</p>
+                                <p><strong>描述:</strong> ${response.data.service.description}</p>`,
+                                '服务解析结果',
+                                {
+                                    dangerouslyUseHTMLString: true,
+                                    confirmButtonText: '确定'
+                                }
+                            );
+                        }
+                    } catch (error) {
+                        ElMessage.error('解析服务失败: ' + (error.response?.data?.error || error.message));
+                    }
+                };
+                
+                // 生命周期
+                onMounted(() => {
+                    loadServices();
+                    
+                    // 处理路由
+                    const hash = window.location.hash.slice(2) || 'home';
+                    currentRoute.value = hash;
+                    
+                    window.onhashchange = () => {
+                        const newHash = window.location.hash.slice(2) || 'home';
+                        currentRoute.value = newHash;
+                    };
+                });
+                
+                return {
+                    currentRoute,
+                    services,
+                    loading,
+                    searchQuery,
+                    currentCategory,
+                    currentPage,
+                    pageSize,
+                    totalServices,
+                    registerForm,
+                    registerRules,
+                    paginatedServices,
+                    categories,
+                    navigateTo,
+                    loadServices,
+                    handleRegister,
+                    resolveService
+                };
+            },
+            
+            template: `
+                <div class="app-container">
+                    <!-- 顶部导航 -->
+                    <header class="app-header">
+                        <div class="header-content">
+                            <div class="logo" @click="navigateTo('home')">
+                                <span class="aisi">AISI</span>
+                                <span class="registry">Registry</span>
+                            </div>
+                            <div class="nav-links">
+                                <el-link :underline="false" @click="navigateTo('home')" :type="currentRoute === 'home' ? 'primary' : ''">首页</el-link>
+                                <el-link :underline="false" @click="navigateTo('directory')" :type="currentRoute === 'directory' ? 'primary' : ''">服务目录</el-link>
+                                <el-link :underline="false" @click="navigateTo('register')" :type="currentRoute === 'register' ? 'primary' : ''">注册服务</el-link>
+                                <el-link :underline="false" href="https://aisi.run" target="_blank">关于</el-link>
+                            </div>
+                            <div class="domain">registry.aisi.run</div>
+                        </div>
+                    </header>
+                    
+                    <!-- 主要内容 -->
+                    <main class="app-main">
+                        <!-- 首页 -->
+                        <div v-if="currentRoute === 'home'" class="home-page">
+                            <div class="hero">
+                                <h1>AISI 服务注册中心</h1>
+                                <p class="subtitle">为智能体提供标准化的原子服务目录</p>
+                                <div class="actions">
+                                    <el-button type="primary" size="large" @click="navigateTo('directory')">
+                                        浏览服务目录
+                                    </el-button>
+                                    <el-button size="large" @click="navigateTo('register')">
+                                        注册你的服务
+                                    </el-button>
+                                </div>
+                            </div>
+                            
+                            <div class="features">
+                                <el-row :gutter="30">
+                                    <el-col :xs="24" :sm="12" :md="8">
+                                        <el-card class="feature-card">
+                                            <template #header>
+                                                <div class="feature-icon">🔍</div>
+                                                <h3>服务发现</h3>
+                                            </template>
+                                            <p>通过统一的 aisi:// 协议发现和调用服务</p>
+                                        </el-card>
+                                    </el-col>
+                                    <el-col :xs="24" :sm="12" :md="8">
+                                        <el-card class="feature-card">
+                                            <template #header>
+                                                <div class="feature-icon">📝</div>
+                                                <h3>简单注册</h3>
+                                            </template>
+                                            <p>填写表单即可将你的API服务接入AISI生态</p>
+                                        </el-card>
+                                    </el-col>
+                                    <el-col :xs="24" :sm="12" :md="8">
+                                        <el-card class="feature-card">
+                                            <template #header>
+                                                <div class="feature-icon">🤖</div>
+                                                <h3>智能体友好</h3>
+                                            </template>
+                                            <p>为AI智能体提供结构化、可理解的服务描述</p>
+                                        </el-card>
+                                    </el-col>
+                                </el-row>
+                            </div>
+                            
+                            <div class="quick-stats">
+                                <el-card>
+                                    <h3>当前状态</h3>
+                                    <div class="stats-grid">
+                                        <div class="stat-item">
+                                            <div class="stat-number">{{ services.length }}</div>
+                                            <div class="stat-label">可用服务</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-number">{{ new Set(services.map(s => s.provider)).size }}</div>
+                                            <div class="stat-label">服务商</div>
+                                        </div>
+                                        <div class="stat-item">
+                                            <div class="stat-number">{{ new Set(services.map(s => s.category)).size }}</div>
+                                            <div class="stat-label">分类</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </div>
+                        </div>
+                        
+                        <!-- 服务目录页 -->
+                        <div v-else-if="currentRoute === 'directory'" class="directory-page">
+                            <div class="page-header">
+                                <h1>服务目录</h1>
+                                <p>浏览所有可用的AISI原子服务</p>
+                            </div>
+                            
+                            <div class="directory-controls">
+                                <el-input 
+                                    v-model="searchQuery" 
+                                    placeholder="搜索服务名称、描述或服务商..." 
+                                    clearable
+                                    style="max-width: 400px;"
+                                >
+                                    <template #prefix>
+                                        <el-icon><Search /></el-icon>
+                                    </template>
+                                </el-input>
+                                
+                                <el-select v-model="currentCategory" placeholder="选择分类" clearable>
+                                    <el-option 
+                                        v-for="cat in categories" 
+                                        :key="cat" 
+                                        :label="cat === 'all' ? '全部' : cat" 
+                                        :value="cat"
+                                    />
+                                </el-select>
+                            </div>
+                            
+                            <div v-loading="loading" class="services-grid">
+                                <div v-if="paginatedServices.length === 0" class="empty-state">
+                                    <el-empty description="没有找到匹配的服务" />
+                                </div>
+                                
+                                <el-row :gutter="20">
+                                    <el-col v-for="service in paginatedServices" :key="service.id" :xs="24" :sm="12" :md="8" :lg="6">
+                                        <el-card class="service-card" shadow="hover">
+                                            <template #header>
+                                                <div class="service-header">
+                                                    <el-tag size="small" :type="service.status === 'active' ? 'success' : 'warning'">
+                                                        {{ service.status === 'active' ? '活跃' : '待审' }}
+                                                    </el-tag>
+                                                    <el-tag size="small" type="info">{{ service.category }}</el-tag>
+                                                </div>
+                                            </template>
+                                            
+                                            <h4 class="service-title">{{ service.name_zh || service.name }}</h4>
+                                            <p class="service-description">{{ service.description }}</p>
+                                            
+                                            <div class="service-meta">
+                                                <div class="service-provider">
+                                                    <strong>服务商:</strong> {{ service.provider }}
+                                                </div>
