@@ -1,13 +1,13 @@
-// api/test.js - 极简测试，无数据库依赖
-export default function handler(req, res) {
-  console.log('Test endpoint called at:', new Date().toISOString());
+// api/test.js - 使用兼容的CommonJS语法
+module.exports = (req, res) => {
+  console.log('Test API called:', req.url);
   
-  return res.status(200).json({
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).json({
     success: true,
-    message: 'AISI Registry API Test Endpoint',
+    message: 'AISI Registry API is working!',
     timestamp: new Date().toISOString(),
-    path: req.url,
-    method: req.method,
-    nodeVersion: process.version
+    endpoint: req.url,
+    method: req.method
   });
-}
+};
